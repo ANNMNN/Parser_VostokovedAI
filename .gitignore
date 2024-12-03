@@ -1,0 +1,7 @@
+.venv/ 
+data/ 
+data_2/ 
+links/ 
+__pycache__/ 
+embeddings.db 
+text_chunks.db 

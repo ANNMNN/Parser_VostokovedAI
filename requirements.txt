@@ -1,0 +1,10 @@
+beautifulsoup4
+requests
+regex
+python-docx
+PyPDF2
+PyMuPDF
+Pillow
+pandas
+langchain
+sentence-transformers==2.2.2
