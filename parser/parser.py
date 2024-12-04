@@ -8,7 +8,7 @@ from parser.image_processor import process_image
 from PIL import Image
 from io import BytesIO
 
-
+# очистка данных
 def clean_parsed_data(data):
 
     def clean_text(text, to_lower=True):
@@ -43,8 +43,9 @@ class FileParser:
     def __init__(self, file_path):
         self.file_path = file_path
 
+    # проверка форматов
     def parse(self):
-        if self.file_path.endswith(".docx"):
+        if self.file_path.endswith(".docx") or self.file_path.endswith(".doc"):
             data = self.parse_docx()
         elif self.file_path.endswith(".html") or self.file_path.endswith(".htm"):
             data = self.parse_html()
@@ -56,20 +57,29 @@ class FileParser:
             raise ValueError("Неподдерживаемый формат файла")
         return self.split_into_chunks(data)
 
+    # парсинг docx
     def parse_docx(self):
         document = Document(self.file_path)
         data = {"text": [], "tables": [], "images": []}
 
         for p in document.paragraphs:
             if p.text.strip():
-                data["text"].append((p.text))
+                data["text"].append(p.text)
 
         for t in document.tables:
-            data["tables"].append(process_table(t))
+            table_data = []
+            for row in t.rows:
+                table_data.append([cell.text.strip() for cell in row.cells])
+            if table_data:
+                data["tables"].append(table_data)
+
+
 
         data["images"] = self.extract_images_from_docx(document)
+
         return clean_parsed_data(data)
 
+    # изоображение из docx
     def extract_images_from_docx(self, document):
         images = []
         for rel in document.part.rels.values():
@@ -82,7 +92,7 @@ class FileParser:
                     print(f"Ошибка при обработке изображения: {e}")
         return images
 
-
+    # парсинг pdf
     def parse_pdf(self):
         reader = PdfReader(self.file_path)
         text = []
@@ -90,6 +100,7 @@ class FileParser:
             text.append(p.extract_text())
         return clean_parsed_data({"text": text, "tables": [], "images": []})
 
+    # парсинг djvu
     def parse_djvu(self):
         doc = fitz.open(self.file_path)
         text = []
@@ -105,13 +116,13 @@ class FileParser:
                 imgs.append(img)
         return clean_parsed_data({"text": text, "tables": [], "images": imgs})
 
+    # деление на чанки
     def split_into_chunks(self, data, chunk_size=500):
-
         chunks = []
         current_chunk = {"text": "", "tables": [], "images": []}
         current_length = 0
 
-        # Разделение текста
+        # Добавление текста в чанки
         for tx in data["text"]:
             for sentence in re.split(r"(?<=[.!?])\s+", tx):
                 if current_length + len(sentence) > chunk_size:
@@ -121,13 +132,39 @@ class FileParser:
                 current_chunk["text"] += sentence + " "
                 current_length += len(sentence)
 
-        if current_chunk["text"].strip():
+        # Добавляем текущий текстовый чанк, если он непустой
+        if current_chunk["text"].strip() or current_chunk["tables"] or current_chunk["images"]:
+            chunks.append(current_chunk)
+            current_chunk = {"text": "", "tables": [], "images": []}
+            current_length = 0
+
+        # Добавление таблиц в чанки
+        for table in data["tables"]:
+            if current_length + len(str(table)) > chunk_size:
+                chunks.append(current_chunk)
+                current_chunk = {"text": "", "tables": [], "images": []}
+                current_length = 0
+            current_chunk["tables"].append(table)
+            current_length += len(str(table))
+
+        # Добавляем текущий чанк, если он непустой
+        if current_chunk["text"].strip() or current_chunk["tables"] or current_chunk["images"]:
+            chunks.append(current_chunk)
+            current_chunk = {"text": "", "tables": [], "images": []}
+            current_length = 0
+
+        # Добавление изображений в чанки
+        for image in data["images"]:
+            if current_length + 1 > chunk_size:  # 1 условно для размера изображения
+                chunks.append(current_chunk)
+                current_chunk = {"text": "", "tables": [], "images": []}
+                current_length = 0
+            current_chunk["images"].append(image)
+            current_length += 1
+
+        # Добавляем последний чанк, если он непустой
+        if current_chunk["text"].strip() or current_chunk["tables"] or current_chunk["images"]:
             chunks.append(current_chunk)
 
-
-        for table in data["tables"]:
-            chunks.append({"text": "", "tables": [table], "images": []})
-        for image in data["images"]:
-            chunks.append({"text": "", "tables": [], "images": [image]})
-
         return chunks
+
