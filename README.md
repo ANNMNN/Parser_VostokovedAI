@@ -1,5 +1,11 @@
 # Parser_VostokovedAI
 
+parser/parser.py
+data = {"text": text, "tables": [], "images": imgs}
+chunk_size=500
+
+
+        
 ## Сделать:
 - вытаскивать из ссылок ссылки (уровень вложенности указать), если требуется регистрация закрывать
 - подключение с впн
